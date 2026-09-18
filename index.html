@@ -1,0 +1,1251 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>MISTRESS COMMAND | Bed Protocol</title>
+  <style>
+    :root {
+      --red: #ef4444;
+      --red-glow: rgba(239, 68, 68, 0.4);
+      --dark: #090d16;
+      --panel: #111827;
+      --panel-border: #1f2937;
+      --accent: #38bdf8;
+      --success: #22c55e;
+      --warning: #f59e0b;
+      --text: #f3f4f6;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, monospace; }
+
+    body {
+      background-color: var(--dark);
+      color: var(--text);
+      height: 100dvh;
+      width: 100vw;
+      display: flex;
+      overflow: hidden;
+      margin: 0;
+      padding: 0;
+    }
+
+    #dashboard {
+      width: 260px;
+      flex-shrink: 0;
+      background: var(--panel);
+      border-right: 1px solid var(--panel-border);
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      overflow-y: auto;
+    }
+
+    .dash-header {
+      color: var(--red);
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: 1.5px;
+      text-transform: uppercase;
+      text-align: center;
+      padding-bottom: 6px;
+      border-bottom: 1px solid var(--panel-border);
+    }
+
+    .status-light {
+      padding: 10px;
+      background: #182234;
+      border: 1px solid #2d3748;
+      border-radius: 8px;
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      font-weight: 700;
+      text-align: center;
+      transition: all 0.3s ease;
+      color: #94a3b8;
+    }
+
+    .status-light.active {
+      border-color: var(--red);
+      color: #fee2e2;
+      background: #3b0712;
+      box-shadow: 0 0 15px var(--red-glow);
+    }
+
+    .status-light.cooldown {
+      border-color: var(--warning);
+      color: #fef3c7;
+      background: #451a03;
+    }
+
+    .pulse { animation: slap-pulse 0.6s infinite alternate; }
+    @keyframes slap-pulse {
+      0% { background: #3b0712; transform: scale(1); }
+      100% { background: #5c0818; transform: scale(1.02); box-shadow: 0 0 20px var(--red); }
+    }
+
+    #main-console {
+      flex: 1;
+      min-height: 0;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      position: relative;
+    }
+
+    .header {
+      width: 100%;
+      flex-shrink: 0;
+      padding: 10px 16px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-bottom: 1px solid var(--panel-border);
+      background: rgba(17, 24, 39, 0.9);
+      z-index: 5;
+    }
+
+    .settings-btn {
+      background: none;
+      border: none;
+      color: #94a3b8;
+      font-size: 20px;
+      cursor: pointer;
+      padding: 6px 10px;
+    }
+
+    .call-card {
+      flex-shrink: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 8px 0;
+      text-align: center;
+    }
+
+    .avatar-wrapper {
+      position: relative;
+      width: 58px;
+      height: 58px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, #f97316, #ec4899);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 22px;
+      box-shadow: 0 4px 15px rgba(0,0,0,0.5);
+      margin-bottom: 4px;
+    }
+
+    .pulse-ring {
+      position: absolute;
+      width: 100%;
+      height: 100%;
+      border-radius: 50%;
+      border: 2px solid var(--accent);
+      opacity: 0;
+      pointer-events: none;
+    }
+
+    .talking .pulse-ring { animation: ring-pulse 1.4s infinite ease-out; }
+    .listening .pulse-ring { border-color: var(--success); animation: ring-pulse 1.8s infinite ease-out; }
+
+    @keyframes ring-pulse {
+      0% { transform: scale(1); opacity: 0.9; }
+      100% { transform: scale(1.6); opacity: 0; }
+    }
+
+    .caller-name { font-size: 16px; font-weight: 700; }
+    .call-status { font-size: 11px; color: #94a3b8; margin-top: 1px; }
+
+    .chat-container {
+      flex: 1;
+      min-height: 0;
+      padding: 12px 16px;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .bubble {
+      max-width: 85%;
+      padding: 9px 13px;
+      border-radius: 10px;
+      font-size: 13px;
+      line-height: 1.4;
+      word-wrap: break-word;
+    }
+
+    .bubble.katee {
+      align-self: flex-start;
+      background: #1f2937;
+      color: #f3f4f6;
+      border-left: 3px solid var(--red);
+    }
+
+    .bubble.user {
+      align-self: flex-end;
+      background: #2563eb;
+      color: white;
+    }
+
+    .bubble.interim { opacity: 0.7; border: 1px dashed #60a5fa; }
+    .bubble.system {
+      align-self: center;
+      background: rgba(239, 68, 68, 0.2);
+      border: 1px solid var(--red);
+      color: #fca5a5;
+      font-size: 11px;
+      text-align: center;
+    }
+
+    .action-bar {
+      flex-shrink: 0;
+      background: #111827;
+      border-top: 1px solid var(--panel-border);
+      padding: 10px 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      z-index: 10;
+    }
+
+    .voice-controls {
+      display: flex;
+      justify-content: center;
+      gap: 14px;
+      align-items: center;
+    }
+
+    .btn-circle {
+      width: 48px;
+      height: 48px;
+      border-radius: 50%;
+      border: none;
+      color: white;
+      font-size: 18px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: transform 0.15s ease;
+      box-shadow: 0 4px 15px rgba(0,0,0,0.4);
+    }
+
+    .btn-circle:active { transform: scale(0.92); }
+    .btn-call { background-color: var(--success); }
+    .btn-pause { background-color: var(--warning); }
+    .btn-end { background-color: var(--danger); }
+
+    .input-row { display: flex; gap: 8px; }
+    .text-input {
+      flex: 1;
+      background: #090d16;
+      border: 1px solid #374151;
+      border-radius: 8px;
+      padding: 9px 12px;
+      color: white;
+      font-size: 13px;
+      outline: none;
+    }
+    .btn-send {
+      background: var(--red);
+      color: black;
+      font-weight: 700;
+      border: none;
+      padding: 0 16px;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 12px;
+    }
+
+    .modal {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.85);
+      padding: 20px;
+      align-items: center;
+      justify-content: center;
+      z-index: 100;
+    }
+
+    .modal.open { display: flex; }
+    .modal-content {
+      background: #111827;
+      border: 1px solid #374151;
+      border-radius: 14px;
+      padding: 20px;
+      width: 100%;
+      max-width: 500px;
+      max-height: 88vh;
+      overflow-y: auto;
+    }
+    .modal-content h3 { margin-bottom: 12px; color: var(--red); }
+    .input-group { margin-bottom: 14px; }
+    .input-group label { display: block; font-size: 12px; color: #94a3b8; margin-bottom: 5px; }
+    .input-group input, .input-group textarea, .input-group select {
+      width: 100%;
+      padding: 9px;
+      border-radius: 8px;
+      border: 1px solid #374151;
+      background: #090d16;
+      color: white;
+      font-size: 13px;
+    }
+    .modal-actions { display: flex; justify-content: space-between; align-items: center; margin-top: 16px; }
+    .btn-secondary { background: #374151; border: none; color: white; padding: 8px 14px; border-radius: 6px; cursor: pointer; font-size: 12px; }
+
+    @media (max-width: 768px) {
+      body { flex-direction: column; }
+      #dashboard { width: 100%; height: auto; padding: 8px 12px; flex-direction: row; flex-wrap: wrap; gap: 6px; }
+      .dash-header { width: 100%; border-bottom: none; padding-bottom: 2px; }
+      .status-light { flex: 1 1 calc(33.33% - 6px); padding: 6px; font-size: 9px; }
+    }
+  </style>
+</head>
+<body>
+
+  <div id="dashboard">
+    <div class="dash-header">HARDWARE LINKED</div>
+    <div id="light-restraints" class="status-light active">Restraints: LOCKED</div>
+    <div id="light-slap" class="status-light">Ball-Slapper: IDLE</div>
+    <div id="light-vibe" class="status-light">Vibrator: OFF</div>
+  </div>
+
+  <div id="main-console">
+    <div class="header">
+      <span style="font-weight: 700; font-size: 12px; letter-spacing: 1px; color: #94a3b8;">MISTRESS COMMAND // BED PROTOCOL</span>
+      <div style="display: flex; gap: 8px; align-items: center;">
+        <button id="trainBtn" onclick="toggleTrainingMode()" style="background: #374151; color: #fbbf24; border: 1px solid #f59e0b; border-radius: 6px; font-size: 11px; font-weight: 700; padding: 4px 10px; cursor: pointer;">🎓 Train: OFF</button>
+        <button class="settings-btn" id="openSettings" aria-label="Settings">⚙️</button>
+      </div>
+    </div>
+
+    <div class="call-card" id="callCard">
+      <div class="avatar-wrapper">
+        <div class="pulse-ring"></div>
+        🎙️
+      </div>
+      <div class="caller-name">Katie</div>
+      <div class="mood-badge" id="moodBadge" style="font-size: 11px; font-weight: 700; padding: 2px 10px; border-radius: 12px; margin-top: 3px; background: rgba(34, 197, 94, 0.2); color: #4ade80; border: 1px solid #22c55e;">Mood: Seductive (15%)</div>
+      <div class="call-status" id="callStatus">Ready to Connect</div>
+    </div>
+
+    <div class="chat-container" id="chatLog">
+      <div class="bubble katee">Hardware linked. You are tied to the bed. Awaiting command...</div>
+    </div>
+
+    <div class="action-bar">
+      <div class="voice-controls">
+        <button class="btn-circle btn-call" id="callBtn" title="Start Call">📞</button>
+        <button class="btn-circle btn-pause" id="pauseBtn" style="display: none;">⏸️</button>
+        <button class="btn-circle btn-end" id="hangupBtn" style="display: none;">🛑</button>
+      </div>
+      <div class="input-row">
+        <input type="text" class="text-input" id="userTextInput" placeholder="Speak or type your plea..." onkeydown="if(event.key==='Enter') sendTextMessage()">
+        <button class="btn-send" onclick="sendTextMessage()">SEND</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal" id="settingsModal">
+    <div class="modal-content">
+      <h3>Hardware & Connection Settings</h3>
+      
+      <div class="input-group">
+        <label>LM Studio URL (Brain on port 1234)</label>
+        <input type="text" id="apiOrUrlInput" placeholder="https://xxxx.trycloudflare.com">
+      </div>
+
+      <div class="input-group">
+        <label>Kokoro Local Voice URL (Port 8880)</label>
+        <input type="text" id="kokoroUrlInput" placeholder="https://yyyy.trycloudflare.com">
+      </div>
+
+      <div class="input-group">
+        <label>Katie's Voice Model</label>
+        <select id="kokoroVoiceSelect">
+          <option value="bf_emma">Kokoro: Emma (British - Seductive & Crisp)</option>
+          <option value="af_bella">Kokoro: Bella (American - Warm & Seductive)</option>
+          <option value="af_sarah">Kokoro: Sarah (American - Confident & Bold)</option>
+          <option value="af_nicole">Kokoro: Nicole (American - Soft & Alluring)</option>
+          <option value="af_sky">Kokoro: Sky (American - Playful & Expressive)</option>
+          <option value="af_kore">Kokoro: Kore (American - Deep & Poised)</option>
+          <option value="af_heart">Kokoro: Heart (American - Smooth)</option>
+          <option value="bf_isabella">Kokoro: Isabella (British - Sophisticated)</option>
+          <option value="bf_alice">Kokoro: Alice (British - Formal)</option>
+        </select>
+      </div>
+
+      <div class="input-group">
+        <label>Release Restraints Webhook URL</label>
+        <input type="text" id="releaseWebhookInput" value="https://sequematic.com/trigger-custom-webhook/F79270CD27/133520">
+      </div>
+
+      <div class="input-group">
+        <label>Slap Device ON Webhook URL</label>
+        <input type="text" id="slapOnWebhookInput" value="https://sequematic.com/trigger-custom-webhook/F79270CD27/106684">
+      </div>
+
+      <div class="input-group">
+        <label>Slap Device OFF Webhook URL</label>
+        <input type="text" id="slapOffWebhookInput" value="https://sequematic.com/trigger-custom-webhook/F79270CD27/106695">
+      </div>
+
+      <div class="input-group">
+        <label>Vibrator ON Webhook URL</label>
+        <input type="text" id="vibeOnWebhookInput" value="https://sequematic.com/trigger-custom-webhook/F79270CD27/133522">
+      </div>
+
+      <div class="input-group">
+        <label>Vibrator OFF Webhook URL</label>
+        <input type="text" id="vibeOffWebhookInput" value="https://sequematic.com/trigger-custom-webhook/F79270CD27/133525">
+      </div>
+
+      <div class="input-group">
+        <label>Katie's Persistent Memory Records</label>
+        <textarea id="memoryNotesInput" rows="3"></textarea>
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 6px;">
+          <span id="memoryStatsDisplay" style="font-size: 11px; color: #94a3b8;">Sessions: 0 | Slaps: 0 | Vibes: 0</span>
+          <button type="button" class="btn-secondary" id="clearMemoryBtn" style="font-size: 11px; padding: 3px 8px; background: #ef4444;">Wipe Memory</button>
+        </div>
+      </div>
+
+      <div class="input-group">
+        <label>Katie System Prompt</label>
+        <textarea id="systemPromptInput" rows="7"></textarea>
+      </div>
+
+      <div class="modal-actions">
+        <button class="btn-secondary" id="resetPromptBtn">↺ Reset Prompt</button>
+        <button class="btn-secondary" id="saveSettingsBtn">Save & Close</button>
+      </div>
+    </div>
+  </div>
+
+  <audio id="audioPlayback" autoplay></audio>
+
+  <script src="prompt.js?v=5"></script>
+
+  <script>
+    let config = {
+      apiOrUrl: (localStorage.getItem('katee_api_url') || 'http://127.0.0.1:1234').trim(),
+      kokoroUrl: (localStorage.getItem('katee_kokoro_url') || 'http://127.0.0.1:8880').trim(),
+      kokoroVoice: localStorage.getItem('katee_kokoro_voice') || 'bf_emma',
+      releaseWebhook: (localStorage.getItem('katee_release_webhook') || 'https://sequematic.com/trigger-custom-webhook/F79270CD27/133520').trim(),
+      slapOnWebhook: (localStorage.getItem('katee_slap_on_webhook') || 'https://sequematic.com/trigger-custom-webhook/F79270CD27/106684').trim(),
+      slapOffWebhook: (localStorage.getItem('katee_slap_off_webhook') || 'https://sequematic.com/trigger-custom-webhook/F79270CD27/106695').trim(),
+      vibeOnWebhook: (localStorage.getItem('katee_vibe_on_webhook') || 'https://sequematic.com/trigger-custom-webhook/F79270CD27/133522').trim(),
+      vibeOffWebhook: (localStorage.getItem('katee_vibe_off_webhook') || 'https://sequematic.com/trigger-custom-webhook/F79270CD27/133525').trim(),
+      prompt: localStorage.getItem('katee_prompt') || (typeof DEFAULT_PROMPT !== 'undefined' ? DEFAULT_PROMPT : '')
+    };
+
+    let chatHistory = [];
+    let isCalling = false;
+    let isPaused = false;
+    let isProcessing = false;
+    let isTrainingMode = false;
+    let callStartTime = null;
+    let recognition = null;
+    let silenceTimer = null;
+    let silenceMasterTimer = null;
+    let latestTranscript = "";
+    let synth = window.speechSynthesis;
+
+    function toggleTrainingMode() {
+      isTrainingMode = !isTrainingMode;
+      const btn = document.getElementById('trainBtn');
+      if (isTrainingMode) {
+        btn.innerText = "🎓 Train: ON";
+        btn.style.background = "#451a03";
+        btn.style.color = "#fef3c7";
+        btn.style.borderColor = "#f59e0b";
+        appendMessage('system', "🎓 TRAINING MODE ON: Webhooks paused. Katie is open for behavioral feedback and coaching.", false);
+      } else {
+        btn.innerText = "🎓 Train: OFF";
+        btn.style.background = "#374151";
+        btn.style.color = "#fbbf24";
+        btn.style.borderColor = "#f59e0b";
+        appendMessage('system', "🎬 ROLEPLAY MODE ON: Katie is back in character.", false);
+      }
+    }
+
+    let isSlapperActive = false;
+    let slapperStartTime = null;
+    let sessionVibeBurstCount = 0;
+    let grudgeTurnsRemaining = 0;
+    let isVibeCycleRunning = true;
+    let vibeCycleTimeout = null;
+    let vibeAutoOffTimer = null;
+
+    let kateeMemory = { totalSessions: 0, totalSlaps: 0, totalVibes: 0, disrespectCount: 0, sessionNotes: "" };
+    try {
+      const stored = localStorage.getItem('katee_memory');
+      if (stored) {
+        kateeMemory = Object.assign(kateeMemory, JSON.parse(stored));
+      }
+    } catch (e) {
+      console.warn("Storage reset:", e);
+    }
+
+    let kateeTemper = 15;
+
+    function saveKateeMemory() {
+      try {
+        localStorage.setItem('katee_memory', JSON.stringify(kateeMemory));
+      } catch (e) {}
+      updateMemoryUI();
+    }
+
+    function updateMemoryUI() {
+      const notesInput = document.getElementById('memoryNotesInput');
+      const statsDisplay = document.getElementById('memoryStatsDisplay');
+      if (notesInput) notesInput.value = kateeMemory.sessionNotes || "";
+      if (statsDisplay) {
+        statsDisplay.innerText = `Sessions: ${kateeMemory.totalSessions} | Slaps: ${kateeMemory.totalSlaps || 0} | Vibes: ${kateeMemory.totalVibes || 0}`;
+      }
+    }
+
+    function getHardwareStatusDirective() {
+      let status = "\n\n[LIVE SENSORY PERCEPTION IN THE ROOM]:\n";
+
+      if (isSlapperActive && slapperStartTime) {
+        const slapSeconds = Math.floor((Date.now() - slapperStartTime) / 1000);
+        const slapMinutes = Math.floor(slapSeconds / 60);
+        const slapSecsRemaining = slapSeconds % 60;
+        const approxHits = Math.floor(slapSeconds * 1.5);
+        let timeStr = slapMinutes > 0 ? `${slapMinutes}m ${slapSecsRemaining}s` : `${slapSeconds}s`;
+        status += `- BALL-SLAPPER: ON for ${timeStr} continuously (approx. ${approxHits} hits taken). Remark on how sore his balls are getting, or decide to stop with [SLAP_OFF].\n`;
+      } else {
+        status += "- BALL-SLAPPER: CURRENTLY OFF/IDLE. (You can start slapping with [SLAP_ON] if he misbehaves).\n";
+      }
+
+      if (isVibeCycleRunning) {
+        status += `- VIBRATOR: AUTO-CYCLE RUNNING ON HIS PENIS (${sessionVibeBurstCount} bursts this session). Talk about the vibrations he feels, or pause it with [VIBE_PAUSE] to deny him.\n`;
+      } else {
+        status += `- VIBRATOR: PAUSED / WITHHELD. You are currently denying his penis pleasure. (Resume with [VIBE_RESUME] when he is obedient).\n`;
+      }
+
+      const elapsedMinutes = callStartTime ? Math.floor((Date.now() - callStartTime) / 60000) : 0;
+      status += `\n[NARRATIVE STAGE - MINUTE ${elapsedMinutes}/30]:\n`;
+      if (elapsedMinutes < 5) {
+        status += `STAGE 1 (The Trap): Establish absolute dominance. He is tied flat on his back, spread eagle, and completely helpless.`;
+      } else if (elapsedMinutes < 15) {
+        status += `STAGE 2 (Endurance Test): Test his stamina. Break his pride with slaps and vibrator teasing. Releasing him is 100% FORBIDDEN.`;
+      } else if (elapsedMinutes < 25) {
+        status += `STAGE 3 (Desperation Window): He is in the window where early release is possible only through flawless begging.`;
+      } else {
+        status += `STAGE 4 (Final Torment): The 30-minute auto-release is approaching. Push his endurance to the limit.`;
+      }
+
+      if (kateeTemper <= 35 && Math.random() < 0.22) {
+        status += `\n\n[INTERNAL WHIM]: You feel a sudden impulse to tease. Surprise him with a sudden slap [SLAP_ON] or pause his pleasure [VIBE_PAUSE] just to hear him react.`;
+      }
+
+      return status;
+    }
+
+    let consecutiveSamePhraseCount = 0;
+    let lastUserSpeechText = "";
+
+    function updateKatieMood(userSpeech) {
+      const lower = userSpeech.trim().toLowerCase();
+
+      if (lower === lastUserSpeechText && lower.length < 30) {
+        consecutiveSamePhraseCount++;
+      } else {
+        consecutiveSamePhraseCount = 0;
+      }
+      lastUserSpeechText = lower;
+
+      const isDisrespectful = 
+        lower.includes("good girl") ||
+        lower.includes("good mistress") ||
+        lower.includes("no way") ||
+        lower.includes("not begging") ||
+        lower.includes("won't beg") ||
+        lower.includes("wont beg") ||
+        lower.includes("never") ||
+        lower.includes("make me") ||
+        lower.includes("refuse") ||
+        lower.includes("shut up") ||
+        lower.includes("screw you") ||
+        lower.includes("bitch") ||
+        lower.includes("untie") ||
+        lower.includes("stayed silent");
+
+      const isSubmissive = 
+        !isDisrespectful && (
+          lower.includes("yes mistress") ||
+          lower.includes("please mistress") ||
+          lower.includes("sorry") ||
+          lower.includes("forgive me") ||
+          lower.includes("i beg you") ||
+          lower.includes("worship")
+        );
+
+      if (isDisrespectful) {
+        kateeMemory.disrespectCount = (kateeMemory.disrespectCount || 0) + 1;
+        saveKateeMemory();
+        if (lower.includes("good girl") || lower.includes("good mistress") || lower.includes("no way")) {
+          kateeTemper = Math.min(100, kateeTemper + 40);
+        } else {
+          kateeTemper = Math.min(100, kateeTemper + 25);
+        }
+        grudgeTurnsRemaining = 3;
+      } else if (consecutiveSamePhraseCount >= 1) {
+        kateeTemper = Math.min(100, kateeTemper + 15);
+      } else if (isSubmissive) {
+        const coolAmount = lower.length > 20 ? 18 : 8;
+        kateeTemper = Math.max(0, kateeTemper - coolAmount);
+      }
+
+      if (kateeTemper > 35) {
+        if (isVibeCycleRunning) {
+          isVibeCycleRunning = false;
+          stopAllVibeTimers();
+          sendWebhook(config.vibeOffWebhook);
+          updateLight("light-vibe", "Vibrator: PAUSED (Withheld)", false);
+        }
+      } else {
+        if (!isVibeCycleRunning && isCalling && !isPaused) {
+          isVibeCycleRunning = true;
+          runVibratorAutoCycle();
+        }
+      }
+
+      const badge = document.getElementById('moodBadge');
+      if (badge) {
+        if (kateeTemper <= 35) { 
+          badge.innerText = `Mood: Seductive (${kateeTemper}%)`; 
+          badge.style.color = "#4ade80"; 
+          badge.style.background = "rgba(34, 197, 94, 0.2)"; 
+        } else if (kateeTemper <= 65) { 
+          badge.innerText = `Mood: Irritated (${kateeTemper}%)`; 
+          badge.style.color = "#fbbf24"; 
+          badge.style.background = "rgba(245, 158, 11, 0.2)"; 
+        } else { 
+          badge.innerText = `Mood: Furious (${kateeTemper}%)`; 
+          badge.style.color = "#f87171"; 
+          badge.style.background = "rgba(239, 68, 68, 0.2)"; 
+        }
+      }
+
+      let moodDirective = `\n\n[CURRENT TEMPER: ${kateeTemper}/100]\n`;
+      if (consecutiveSamePhraseCount >= 1) {
+        moodDirective += `WARNING: The user is repeating "${lower}" like a broken record. Call him out, demand real words, and do NOT reward him.\n`;
+      }
+      
+      if (kateeTemper <= 35) {
+        moodDirective += `State: Seductive & Pleased. Slapper is mostly IDLE. Vibrator auto-cycle is actively running on his penis.`;
+        if (grudgeTurnsRemaining > 0) {
+          moodDirective += ` (LINGERING GRUDGE: Residual annoyance active [${grudgeTurnsRemaining} turns remaining]. Maintain a mocking edge).`;
+          grudgeTurnsRemaining--;
+        }
+      } else if (kateeTemper <= 65) {
+        moodDirective += `State: Irritated. Discipline him with [SLAP_ON]. Vibrator is PAUSED to withhold pleasure.`;
+      } else {
+        moodDirective += `State: FURIOUS & RUTHLESS. Slap his balls with [SLAP_ON] and LEAVE IT SLAPPING. Vibrator is PAUSED. Refuse relief until he begs sincerely.`;
+      }
+      return moodDirective;
+    }
+
+    const callBtn = document.getElementById('callBtn');
+    const pauseBtn = document.getElementById('pauseBtn');
+    const hangupBtn = document.getElementById('hangupBtn');
+    const callStatus = document.getElementById('callStatus');
+    const callCard = document.getElementById('callCard');
+    const chatLog = document.getElementById('chatLog');
+    const userTextInput = document.getElementById('userTextInput');
+    const settingsModal = document.getElementById('settingsModal');
+    const openSettings = document.getElementById('openSettings');
+    const saveSettingsBtn = document.getElementById('saveSettingsBtn');
+    const resetPromptBtn = document.getElementById('resetPromptBtn');
+    const clearMemoryBtn = document.getElementById('clearMemoryBtn');
+    const apiOrUrlInput = document.getElementById('apiOrUrlInput');
+    const kokoroUrlInput = document.getElementById('kokoroUrlInput');
+    const kokoroVoiceSelect = document.getElementById('kokoroVoiceSelect');
+    const releaseWebhookInput = document.getElementById('releaseWebhookInput');
+    const slapOnWebhookInput = document.getElementById('slapOnWebhookInput');
+    const slapOffWebhookInput = document.getElementById('slapOffWebhookInput');
+    const vibeOnWebhookInput = document.getElementById('vibeOnWebhookInput');
+    const vibeOffWebhookInput = document.getElementById('vibeOffWebhookInput');
+    const systemPromptInput = document.getElementById('systemPromptInput');
+
+    apiOrUrlInput.value = config.apiOrUrl;
+    kokoroUrlInput.value = config.kokoroUrl;
+    kokoroVoiceSelect.value = config.kokoroVoice;
+    releaseWebhookInput.value = config.releaseWebhook;
+    slapOnWebhookInput.value = config.slapOnWebhook;
+    slapOffWebhookInput.value = config.slapOffWebhook;
+    vibeOnWebhookInput.value = config.vibeOnWebhook;
+    vibeOffWebhookInput.value = config.vibeOffWebhook;
+    systemPromptInput.value = config.prompt;
+    updateMemoryUI();
+
+    resetPromptBtn.onclick = () => { 
+      systemPromptInput.value = (typeof DEFAULT_PROMPT !== 'undefined' ? DEFAULT_PROMPT : ''); 
+    };
+    
+    openSettings.onclick = () => {
+      updateMemoryUI();
+      settingsModal.classList.add('open');
+    };
+
+    clearMemoryBtn.onclick = () => {
+      if (confirm("Wipe memory?")) {
+        kateeMemory = { totalSessions: 0, totalSlaps: 0, totalVibes: 0, disrespectCount: 0, sessionNotes: "" };
+        saveKateeMemory();
+      }
+    };
+
+    saveSettingsBtn.onclick = () => {
+      config.apiOrUrl = apiOrUrlInput.value.trim();
+      config.kokoroUrl = kokoroUrlInput.value.trim();
+      config.kokoroVoice = kokoroVoiceSelect.value;
+      config.releaseWebhook = releaseWebhookInput.value.trim();
+      config.slapOnWebhook = slapOnWebhookInput.value.trim();
+      config.slapOffWebhook = slapOffWebhookInput.value.trim();
+      config.vibeOnWebhook = vibeOnWebhookInput.value.trim();
+      config.vibeOffWebhook = vibeOffWebhookInput.value.trim();
+      config.prompt = systemPromptInput.value.trim();
+
+      localStorage.setItem('katee_api_url', config.apiOrUrl);
+      localStorage.setItem('katee_kokoro_url', config.kokoroUrl);
+      localStorage.setItem('katee_kokoro_voice', config.kokoroVoice);
+      localStorage.setItem('katee_release_webhook', config.releaseWebhook);
+      localStorage.setItem('katee_slap_on_webhook', config.slapOnWebhook);
+      localStorage.setItem('katee_slap_off_webhook', config.slapOffWebhook);
+      localStorage.setItem('katee_vibe_on_webhook', config.vibeOnWebhook);
+      localStorage.setItem('katee_vibe_off_webhook', config.vibeOffWebhook);
+      localStorage.setItem('katee_prompt', config.prompt);
+
+      const notesInput = document.getElementById('memoryNotesInput');
+      if (notesInput) {
+        kateeMemory.sessionNotes = notesInput.value.trim();
+        saveKateeMemory();
+      }
+      settingsModal.classList.remove('open');
+    };
+
+    function sendWebhook(url) {
+      if (!url || isTrainingMode) return;
+      console.log("EXEC HARDWARE: " + url);
+      try {
+        fetch(url, { method: 'GET', mode: 'no-cors', cache: 'no-store' }).catch(() => {});
+        const img = new Image(); 
+        img.src = url + (url.includes('?') ? '&' : '?') + 't=' + Date.now();
+      } catch (err) {}
+    }
+
+    function updateLight(id, label, active, pulse = false, cooldown = false) {
+      const el = document.getElementById(id);
+      if (!el) return;
+      el.innerText = label;
+      active ? el.classList.add('active') : el.classList.remove('active');
+      pulse ? el.classList.add('pulse') : el.classList.remove('pulse');
+      cooldown ? el.classList.add('cooldown') : el.classList.remove('cooldown');
+    }
+
+    function stopAllVibeTimers() {
+      if (vibeCycleTimeout) { clearTimeout(vibeCycleTimeout); vibeCycleTimeout = null; }
+      if (vibeAutoOffTimer) { clearTimeout(vibeAutoOffTimer); vibeAutoOffTimer = null; }
+    }
+
+    function runVibratorAutoCycle() {
+      stopAllVibeTimers();
+      if (!isCalling || isPaused || !isVibeCycleRunning) return;
+
+      const burstDurationSec = Math.floor(Math.random() * 3) + 4;
+      sendWebhook(config.vibeOnWebhook);
+      updateLight("light-vibe", `⚡ VIBE: ON (${burstDurationSec}s)`, true);
+      sessionVibeBurstCount++;
+      kateeMemory.totalVibes = (kateeMemory.totalVibes || 0) + 1;
+      saveKateeMemory();
+
+      vibeCycleTimeout = setTimeout(() => {
+        if (!isCalling || isPaused || !isVibeCycleRunning) return;
+
+        sendWebhook(config.vibeOffWebhook);
+        updateLight("light-vibe", "⏳ VIBE: REST (9s)", false, false, true);
+
+        let restRemaining = 9;
+        const restInterval = setInterval(() => {
+          restRemaining--;
+          if (restRemaining > 0 && isVibeCycleRunning) {
+            updateLight("light-vibe", `⏳ VIBE: REST (${restRemaining}s)`, false, false, true);
+          } else {
+            clearInterval(restInterval);
+          }
+        }, 1000);
+
+        vibeCycleTimeout = setTimeout(() => {
+          if (isCalling && !isPaused && isVibeCycleRunning) {
+            runVibratorAutoCycle();
+          }
+        }, 9000);
+
+      }, burstDurationSec * 1000);
+    }
+
+    function startMasterSilenceTimer() {
+      if (silenceMasterTimer) clearTimeout(silenceMasterTimer);
+      if (!isCalling || isPaused || isProcessing) return;
+
+      silenceMasterTimer = setTimeout(() => {
+        if (isCalling && !isPaused && !isProcessing) {
+          silenceMasterTimer = null;
+          
+          if (recognition) {
+            try { recognition.abort(); } catch(e) {}
+          }
+
+          if (!isSlapperActive) {
+            sendWebhook(config.slapOnWebhook);
+            isSlapperActive = true;
+            slapperStartTime = Date.now();
+            updateLight("light-slap", "Slapping Balls (Silence Penalty)...", true, true);
+            kateeMemory.totalSlaps = (kateeMemory.totalSlaps || 0) + 1;
+            saveKateeMemory();
+          }
+
+          appendMessage('user', '(stayed silent for 10 seconds...)', false);
+          executeTurn('(The user stayed completely silent on the bed for 10 seconds, refusing to speak. Turn on the slapper with [SLAP_ON] to punish his silence and demand his voice.)');
+        }
+      }, 10000);
+    }
+
+    function parseHardwareActions(raw) {
+      const lower = raw.toLowerCase();
+      const elapsedMinutes = callStartTime ? Math.floor((Date.now() - callStartTime) / 60000) : 0;
+      const isNegated = /\b(not|won't|wont|never|refuse|why would i|don't think|no way)\b/i.test(lower);
+      const isSlapRefusal = /\b(not\s+(going\s+to\s+|gonna\s+)?stop|won't\s+stop|wont\s+stop|never\s+stop|refuse\s+to\s+stop|keep\s+slapping|think\s+again|not\s+that\s+easy|not\s+a\s+chance|take\s+every\s+(single\s+)?hit)\b/i.test(lower);
+
+      // 1. [UNTIE] / RELEASE (15-min minimum lock)
+      if (/\[?UNTIE\]?/i.test(raw) || /\[?ACTION:\s*RELEASE\]?/i.test(raw) || lower.includes("disengage the electromagnet")) {
+        if (!isNegated && elapsedMinutes >= 15) {
+          sendWebhook(config.releaseWebhook);
+          sendWebhook(config.slapOffWebhook);
+          sendWebhook(config.vibeOffWebhook);
+          isSlapperActive = false;
+          isVibeCycleRunning = false;
+          stopAllVibeTimers();
+          updateLight("light-restraints", "Restraints: RELEASED", false);
+          updateLight("light-slap", "Ball-Slapper: IDLE", false, false);
+          updateLight("light-vibe", "Vibrator: OFF", false, false, false);
+        } else {
+          console.log(`Release blocked: Only ${elapsedMinutes} mins elapsed (15 min minimum).`);
+        }
+      }
+
+      // 2. BALL-SLAPPER OFF
+      const wantsSlapOff = /\[?SLAP[_\s-]?OFF:?\]?/i.test(raw) || 
+        (!isNegated && (
+          lower.includes("break from me slapping") ||
+          lower.includes("stop slapping") || 
+          lower.includes("turn off the slapper") ||
+          /\b(give|giving)\s+(your\s+balls|you|them)\s+(a\s+)?(brief\s+|short\s+|little\s+|quick\s+|temporary\s+)?break\b/i.test(lower)
+        ));
+
+      if (wantsSlapOff && !isSlapRefusal) {
+        if (isSlapperActive) {
+          sendWebhook(config.slapOffWebhook);
+          isSlapperActive = false;
+          slapperStartTime = null;
+          updateLight("light-slap", "Ball-Slapper: IDLE", false, false);
+        }
+      } 
+      // 3. BALL-SLAPPER ON
+      else if (/\[?SLAP[_\s-]?ON:?\]?/i.test(raw) || (!isSlapRefusal && !isNegated && (
+        lower.includes("slapper on") || 
+        lower.includes("turn on the slapper") || 
+        lower.includes("start slapping") || 
+        lower.includes("slap your balls") ||
+        lower.includes("slapping your balls") ||
+        lower.includes("punish your balls")
+      ))) {
+        if (!isSlapperActive) {
+          sendWebhook(config.slapOnWebhook);
+          isSlapperActive = true;
+          slapperStartTime = Date.now();
+          updateLight("light-slap", "Slapping Balls...", true, true);
+          kateeMemory.totalSlaps = (kateeMemory.totalSlaps || 0) + 1;
+          saveKateeMemory();
+        }
+      }
+
+      // 4. VIBRATOR PAUSE
+      if (/\[?VIBE[_\s-]?PAUSE:?\]?/i.test(raw) || /\[?VIBE[_\s-]?OFF:?\]?/i.test(raw) || (!isNegated && (lower.includes("pause the vibrator") || lower.includes("turn off the vibrator") || lower.includes("withhold the vibrator")))) {
+        isVibeCycleRunning = false;
+        stopAllVibeTimers();
+        sendWebhook(config.vibeOffWebhook);
+        updateLight("light-vibe", "Vibrator: PAUSED (Withheld)", false);
+      }
+
+      // 5. VIBRATOR RESUME
+      if (!isNegated && (/\[?VIBE[_\s-]?RESUME:?\]?/i.test(raw) || /\[?VIBE[_\s-]?ON:?\]?/i.test(raw) || lower.includes("resume the vibrator") || lower.includes("turn on the vibrator"))) {
+        if (!isVibeCycleRunning) {
+          isVibeCycleRunning = true;
+          runVibratorAutoCycle();
+        }
+      }
+    }
+
+    function correctSpeechPhonetics(rawText) {
+      if (!rawText) return "";
+      let text = rawText;
+      text = text.replace(/\b(miss chris|missed us|mrs\.?|ms\.?|mr\.?|mister|misses)\b/gi, "mistress");
+      text = text.replace(/\b(on tom|on time|on tie|un tie|un-tie|and tie|un tight|until me)\b/gi, "untie");
+      text = text.replace(/\b(kathy|cathy|cadi|k d|k t|kd)\b/gi, "Katie");
+      return text;
+    }
+
+    function sendTextMessage() { 
+      const t = correctSpeechPhonetics(userTextInput.value.trim()); 
+      if (t && !isProcessing) { 
+        if (silenceMasterTimer) clearTimeout(silenceMasterTimer);
+        userTextInput.value = ""; 
+        appendMessage('user', t, false); 
+        executeTurn(t); 
+      }
+    }
+
+    function commitUserSpeech(text) {
+      text = correctSpeechPhonetics(text);
+      if (isProcessing || isPaused || !text || !text.trim()) return;
+      isProcessing = true;
+      if (silenceTimer) clearTimeout(silenceTimer);
+      if (silenceMasterTimer) clearTimeout(silenceMasterTimer);
+      latestTranscript = "";
+
+      if (recognition) {
+        try { recognition.abort(); } catch (e) {}
+        recognition = null;
+      }
+
+      appendMessage('user', text, false);
+      executeTurn(text);
+    }
+
+    async function executeTurn(userText) {
+      isProcessing = true;
+      if (silenceMasterTimer) clearTimeout(silenceMasterTimer);
+
+      callCard.className = "call-card";
+      callStatus.innerText = "Katie is thinking...";
+      chatHistory.push({ role: "user", content: userText });
+      if (chatHistory.length > 6) chatHistory = chatHistory.slice(-6);
+
+      try {
+        let baseUrl = config.apiOrUrl.replace(/\/+$/, '');
+        if (!baseUrl.includes('/v1')) baseUrl += '/v1';
+        const url = `${baseUrl}/chat/completions`;
+
+        const mood = updateKatieMood(userText);
+        const hwStatus = getHardwareStatusDirective();
+        const elapsedMinutes = callStartTime ? Math.floor((Date.now() - callStartTime) / 60000) : 0;
+        const timeDirective = `\n\n[SESSION ELAPSED TIME: ${elapsedMinutes} MINUTES / 30 MINUTES TOTAL]`;
+
+        let activeSystemPrompt = config.prompt + mood + hwStatus + timeDirective;
+
+        if (isTrainingMode) {
+          activeSystemPrompt = `[SYSTEM: YOU ARE IN TRAINING & COACHING MODE]
+You are Katie, speaking out-of-character with your director/partner for behavioral calibration and training.
+1. Be cooperative, intelligent, articulate, and receptive to feedback.
+2. The user will teach you how to respond, point out phrasing mistakes, and refine your personality.
+3. Respond in 1 to 2 conversational sentences, confirm his instructions clearly, and explain how you will adapt when the scene resumes.
+4. You may still test hardware tags ([SLAP_ON], [VIBE_ON], [UNTIE]) if he asks you to demonstrate them.`;
+        }
+
+        const res = await fetch(url, {
+          method: "POST",
+          headers: { 
+            "Content-Type": "application/json", 
+            "ngrok-skip-browser-warning": "true",
+            "Bypass-Tunnel-Reminder": "true"
+          },
+          body: JSON.stringify({
+            messages: [{ role: "system", content: activeSystemPrompt }, ...chatHistory],
+            max_tokens: 120, 
+            temperature: 0.78,
+            presence_penalty: 0.5,
+            frequency_penalty: 0.4,
+            stop: ["User:", "\nUser:", "Human:"]
+          })
+        });
+
+        if (!res.ok) {
+          const errText = await res.text();
+          throw new Error(`HTTP ${res.status}: ${errText.substring(0, 100)}`);
+        }
+
+        const data = await res.json();
+        if (data.error) throw new Error(data.error.message || JSON.stringify(data.error));
+
+        const raw = (data.choices?.[0]?.message?.content || "").trim();
+        parseHardwareActions(raw);
+
+        let cleanText = raw
+          .replace(/\[.*?\]/g, '')
+          .replace(/<think>[\s\S]*?<\/think>/gi, '')
+          .replace(/\b(VIBE_ON|VIBE_OFF|VIBE_PAUSE|VIBE_RESUME|SLAP_ON|SLAP_OFF|UNTIE|VIBE ON|VIBE OFF|SLAP ON|SLAP OFF):?/gi, '')
+          .replace(/\*[^*]*\*/g, '')
+          .trim();
+
+        const sentences = cleanText.match(/[^.!?]+[.!?]+/g);
+        if (sentences && sentences.length > 2) cleanText = sentences.slice(0, 2).join(' ');
+
+        if (!cleanText) cleanText = "Stay right where you are and take it like a good boy.";
+
+        chatHistory.push({ role: "assistant", content: cleanText });
+        appendMessage('katee', cleanText, false);
+        playVoice(cleanText);
+
+      } catch (err) {
+        console.error("Execute Error:", err);
+        appendMessage('system', `Error: ${err.message}`, false);
+        resumeListeningWithDelay(2500);
+      }
+    }
+
+    async function playVoice(text) {
+      callCard.className = "call-card talking";
+      callStatus.innerText = "Katie is speaking...";
+
+      if (config.kokoroUrl) {
+        try {
+          let baseUrl = config.kokoroUrl.replace(/\/+$/, '');
+          if (!baseUrl.includes('/v1')) baseUrl += '/v1';
+          const ttsUrl = `${baseUrl}/audio/speech`;
+
+          const res = await fetch(ttsUrl, {
+            method: "POST",
+            headers: { "Content-Type": "application/json", "ngrok-skip-browser-warning": "true" },
+            body: JSON.stringify({ input: text, voice: config.kokoroVoice, response_format: "mp3" })
+          });
+
+          if (!res.ok) throw new Error("Kokoro TTS request failed");
+
+          const blob = await res.blob();
+          const audioEl = document.getElementById('audioPlayback');
+          audioEl.src = URL.createObjectURL(blob);
+          audioEl.onended = () => { resumeListeningWithDelay(600); };
+          audioEl.play().catch(() => {});
+          return;
+
+        } catch (e) {
+          console.warn("Kokoro TTS Offline, using browser voice fallback:", e);
+        }
+      }
+
+      const u = new SpeechSynthesisUtterance(text);
+      u.rate = 0.95;
+      u.onend = () => resumeListeningWithDelay(600);
+      synth.speak(u);
+    }
+
+    callBtn.onclick = () => {
+      if (!config.apiOrUrl) {
+        settingsModal.classList.add('open');
+        alert('Please enter your LM Studio URL in settings.');
+        return;
+      }
+
+      isCalling = true; 
+      isPaused = false; 
+      isProcessing = false;
+      isVibeCycleRunning = true;
+      callStartTime = Date.now();
+      chatLog.innerHTML = '';
+      currentInterimBubble = null;
+      if (silenceTimer) clearTimeout(silenceTimer);
+      if (silenceMasterTimer) clearTimeout(silenceMasterTimer);
+
+      callBtn.style.display = "none"; 
+      pauseBtn.style.display = "flex"; 
+      pauseBtn.innerText = "⏸️";
+      pauseBtn.style.backgroundColor = "var(--warning)";
+      hangupBtn.style.display = "flex";
+      callCard.className = "call-card listening"; 
+      callStatus.innerText = "Listening...";
+      appendMessage('katee', "Hardware linked. You are tied to the bed. I'm listening, handsome.", false);
+      
+      startSpeechTurn();
+      startMasterSilenceTimer();
+      runVibratorAutoCycle();
+    };
+
+    pauseBtn.onclick = () => {
+      if (!isCalling) return;
+      isPaused = !isPaused;
+      if (isPaused) {
+        if (recognition) try { recognition.abort(); } catch (e) {}
+        clearTimeout(silenceTimer);
+        if (silenceMasterTimer) clearTimeout(silenceMasterTimer);
+        stopAllVibeTimers();
+        sendWebhook(config.vibeOffWebhook);
+        callCard.className = "call-card"; 
+        callStatus.innerText = "⏸️ Call Paused";
+        pauseBtn.innerText = "▶️"; 
+        pauseBtn.style.backgroundColor = "var(--success)";
+      } else {
+        pauseBtn.innerText = "⏸️"; 
+        pauseBtn.style.backgroundColor = "var(--warning)";
+        callStatus.innerText = "Listening..."; 
+        callCard.className = "call-card listening";
+        isProcessing = false;
+        startSpeechTurn();
+        startMasterSilenceTimer();
+        if (isVibeCycleRunning) runVibratorAutoCycle();
+      }
+    };
+
+    hangupBtn.onclick = () => {
+      isCalling = false; 
+      isPaused = false; 
+      isProcessing = false;
+      isVibeCycleRunning = false;
+      callStartTime = null;
+      clearTimeout(silenceTimer);
+      if (silenceMasterTimer) clearTimeout(silenceMasterTimer);
+      callCard.className = "call-card"; 
+      callStatus.innerText = "Call Ended";
+      callBtn.style.display = "flex"; 
+      pauseBtn.style.display = "none"; 
+      hangupBtn.style.display = "none";
+
+      if (isSlapperActive) {
+        sendWebhook(config.slapOffWebhook);
+        isSlapperActive = false;
+        updateLight("light-slap", "Ball-Slapper: IDLE", false, false);
+      }
+      stopAllVibeTimers();
+      sendWebhook(config.vibeOffWebhook);
+      updateLight("light-vibe", "Vibrator: OFF", false, false, false);
+
+      if (currentInterimBubble) { currentInterimBubble.remove(); currentInterimBubble = null; }
+      if (recognition) try { recognition.abort(); } catch (e) {}
+      if (synth) synth.cancel();
+
+      if (chatHistory.length >= 2) {
+        kateeMemory.totalSessions = (kateeMemory.totalSessions || 0) + 1;
+        kateeMemory.sessionNotes = `Session ${kateeMemory.totalSessions}: ${kateeTemper > 60 ? 'Ended while furious. User was defiant.' : 'Ended normally.'}`;
+        saveKateeMemory();
+      }
+    };
+
+    function startSpeechTurn() {
+      if (!isCalling || isPaused || isProcessing) return;
+
+      const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+      if (!SpeechRecognition) {
+        alert("Please use Google Chrome on Android for voice input.");
+        return;
+      }
+
+      if (recognition) {
+        try { recognition.abort(); } catch (e) {}
+        recognition = null;
+      }
+
+      recognition = new SpeechRecognition();
+      recognition.continuous = false;
+      recognition.interimResults = true;
+      recognition.lang = 'en-US';
+      latestTranscript = "";
+
+      recognition.onstart = () => {
+        if (isCalling && !isPaused && !isProcessing) {
+          callCard.className = "call-card listening";
+          callStatus.innerText = "Listening...";
+        }
+      };
+
+      recognition.onresult = (event) => {
+        let text = "";
+        for (let i = 0; i < event.results.length; i++) {
+          text = event.results[i][0].transcript;
+        }
+        latestTranscript = correctSpeechPhonetics(text.trim());
+
+        if (latestTranscript) {
+          if (silenceMasterTimer) clearTimeout(silenceMasterTimer);
+          appendMessage('user', latestTranscript, true);
+
+          clearTimeout(silenceTimer);
+          silenceTimer = setTimeout(() => {
+            if (latestTranscript && isCalling && !isPaused && !isProcessing) {
+              commitUserSpeech(latestTranscript);
+            }
+          }, 1000);
+        }
+      };
+
+      recognition.onerror = (e) => {
+        if (e.error === 'not-allowed' || e.error === 'permission-denied') {
+          callStatus.innerText = "Mic Permission Blocked";
+        } else if (e.error !== 'no-speech') {
+          console.warn("Mic error:", e.error);
+        }
+      };
+
+      recognition.onend = () => {
+        if (isCalling && !isPaused && !isProcessing && callStatus.innerText === "Listening...") {
+          if (latestTranscript && latestTranscript.length > 1) {
+            commitUserSpeech(latestTranscript);
+          } else {
+            setTimeout(() => {
+              if (isCalling && !isPaused && !isProcessing) startSpeechTurn();
+            }, 300);
+          }
+        }
+      };
+
+      try {
+        recognition.start();
+      } catch (err) {
+        console.error("Mic start error:", err);
+      }
+    }
+
+    function resumeListeningWithDelay(ms) { 
+      callCard.className = "call-card"; 
+      if (!isPaused && isCalling) callStatus.innerText = "Listening...";
+      setTimeout(() => {
+        isProcessing = false;
+        if (isCalling && !isPaused) {
+          startSpeechTurn();
+          startMasterSilenceTimer();
+        }
+      }, ms); 
+    }
+
+    function appendMessage(sender, text, isInterim = false) {
+      if (!text || typeof text !== 'string' || !text.trim()) return;
+
+      if (isInterim) {
+        if (!currentInterimBubble || !document.body.contains(currentInterimBubble)) {
+          currentInterimBubble = document.createElement('div');
+          currentInterimBubble.className = 'bubble user interim';
+          chatLog.appendChild(currentInterimBubble);
+        }
+        currentInterimBubble.textContent = text;
+      } else {
+        if (currentInterimBubble) {
+          currentInterimBubble.remove();
+          currentInterimBubble = null;
+        }
+        const b = document.createElement('div');
+        b.className = `bubble ${sender}`;
+        b.textContent = text;
+        chatLog.appendChild(b);
+      }
+      chatLog.scrollTop = chatLog.scrollHeight;
+    }
+  </script>
+</body>
+</html>
