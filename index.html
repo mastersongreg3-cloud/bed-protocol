@@ -453,7 +453,7 @@
 
   <audio id="audioPlayback" autoplay></audio>
 
-  <script src="prompt.js?v=6"></script>
+  <script src="prompt.js?v=7"></script>
 
   <script>
     let config = {
@@ -562,7 +562,6 @@
             hasChanged = true;
             appendMessage('github', `🗑️ Deleted rule #${targetIndex + 1}: "${removed}"`, false);
           } else {
-            // Find by matching text substring
             const foundIdx = existingRules.findIndex(r => r.toLowerCase().includes(target));
             if (foundIdx !== -1) {
               const removed = existingRules.splice(foundIdx, 1)[0];
@@ -986,7 +985,6 @@
     }
 
     function parseHardwareActions(raw) {
-      // 🎓 Explicit 3-Action Rule Parser in Training Mode
       if (isTrainingMode) {
         const addMatch = raw.match(/\[ADD_RULE:\s*([^\]]+)\]/i);
         const deleteMatch = raw.match(/\[DELETE_RULE:\s*([^\]]+)\]/i);
@@ -1176,19 +1174,23 @@ INSTRUCTIONS FOR RULE MANAGEMENT:
         const raw = (data.choices?.[0]?.message?.content || "").trim();
         parseHardwareActions(raw);
 
+        // Clean text and fix orphaned words/acronym pronunciations
         let cleanText = raw
           .replace(/\[(ADD_RULE|DELETE_RULE|NO_RULE_CHANGE|NO_RULE):\s*[^\]]*\]/gi, '')
           .replace(/\[(NO_RULE_CHANGE|NO_RULE)\]/gi, '')
           .replace(/\[.*?\]/g, '')
           .replace(/<think>[\s\S]*?<\/think>/gi, '')
           .replace(/\b(VIBE_ON|VIBE_OFF|VIBE_PAUSE|VIBE_RESUME|SLAP_ON|SLAP_OFF|UNTIE|VIBE ON|VIBE OFF|SLAP ON|SLAP OFF):?/gi, '')
+          .replace(/\s+(with|by|using|through|from|via)\s*([.,!?])/gi, '$2')
+          .replace(/\bIT\b/g, 'it')
+          .replace(/\b(ON|OFF|AM|AN|AT|BE|BY|DO|GO|HE|IF|IN|IS|ME|MY|NO|OF|OR|SO|TO|UP|US|WE)\b/g, (m) => m.toLowerCase())
           .replace(/\*[^*]*\*/g, '')
           .trim();
 
         const sentences = cleanText.match(/[^.!?]+[.!?]+/g);
         if (sentences && sentences.length > 2) cleanText = sentences.slice(0, 2).join(' ');
 
-        if (!cleanText) cleanText = "Understood, director.";
+        if (!cleanText) cleanText = "Stay right where you are and take it like a good boy.";
 
         chatHistory.push({ role: "assistant", content: cleanText });
         appendMessage('katee', cleanText, false);
