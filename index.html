@@ -388,7 +388,7 @@
         </select>
       </div>
 
-      <h4 style="color: var(--accent); margin: 16px 0 8px 0; font-size: 12px; text-transform: uppercase;">💾 GitHub Live Auto-Commit (Training Sync)</h4>
+      <h4 style="color: var(--accent); margin: 16px 0 8px 0; font-size: 12px; text-transform: uppercase;">💾 GitHub Live Auto-Commit (Rulebook Sync)</h4>
       <div class="input-group">
         <label>GitHub Personal Access Token (PAT with 'repo' scope)</label>
         <input type="password" id="githubTokenInput" placeholder="ghp_xxxxxxxxxxxxxxxxxxxx">
@@ -435,8 +435,8 @@
       </div>
 
       <div class="input-group">
-        <label>Learned Rules from Training (Saved on GitHub)</label>
-        <textarea id="learnedRulesInput" rows="4" placeholder="Learned rules from coaching will appear here..."></textarea>
+        <label>Active Rulebook (Managed via Training & GitHub)</label>
+        <textarea id="learnedRulesInput" rows="4" placeholder="Learned rules will appear here..."></textarea>
       </div>
 
       <div class="input-group">
@@ -482,7 +482,7 @@
     let latestTranscript = "";
     let synth = window.speechSynthesis;
 
-    // --- 🎓 TRAINING MODE & GITHUB AUTO-COMMIT SYNC ---
+    // --- 🎓 ACTIVE RULEBOOK & GITHUB AUTO-COMMIT ENGINE ---
     let learnedRules = JSON.parse(localStorage.getItem('katee_learned_rules')) || [];
 
     function toggleTrainingMode() {
@@ -493,24 +493,24 @@
         btn.style.background = "#451a03";
         btn.style.color = "#fef3c7";
         btn.style.borderColor = "#f59e0b";
-        appendMessage('system', "🎓 TRAINING MODE ON: Webhooks paused. Coach Katie out-of-character. Lessons will be distilled and committed to GitHub automatically.", false);
+        appendMessage('system', "🎓 TRAINING MODE ON: Webhooks paused. Coach Katie out-of-character. Say 'delete rule #' to remove a rule, or teach her new behavior to add rules.", false);
       } else {
         btn.innerText = "🎓 Train: OFF";
         btn.style.background = "#374151";
         btn.style.color = "#fbbf24";
         btn.style.borderColor = "#f59e0b";
-        appendMessage('system', "🎬 ROLEPLAY MODE ON: Katie has loaded all learned rules and returned to character.", false);
+        appendMessage('system', "🎬 ROLEPLAY MODE ON: Katie has loaded all active rules and returned to character.", false);
       }
     }
 
-    async function commitRuleToGitHub(newRule) {
+    async function commitRuleChangeToGitHub(action, payload) {
       if (!config.githubToken || !config.githubRepo) {
-        console.warn("GitHub Auto-Commit skipped: Token or Repo not set in Settings.");
-        appendMessage('github', `💡 Tip: Add your GitHub Token in Settings to automatically commit this rule to GitHub: "${newRule}"`, false);
+        console.warn("GitHub Commit skipped: Token or Repo not set.");
+        if (action === 'add') {
+          appendMessage('github', `💡 Tip: Add your GitHub Token in Settings to automatically sync: "${payload}"`, false);
+        }
         return;
       }
-
-      appendMessage('github', `💾 Committing new rule to GitHub (${config.githubRepo})...`, false);
 
       const filePath = "learned_rules.json";
       const apiUrl = `https://api.github.com/repos/${config.githubRepo}/contents/${filePath}`;
@@ -519,7 +519,7 @@
         let currentSha = null;
         let existingRules = [];
 
-        // 1. Fetch current file if it exists
+        // 1. Fetch current file from GitHub
         try {
           const getRes = await fetch(apiUrl, {
             headers: {
@@ -534,24 +534,61 @@
             existingRules = JSON.parse(decodedContent);
           }
         } catch (e) {
-          console.log("No existing learned_rules.json, creating new file.");
+          console.log("No existing learned_rules.json found, creating fresh list.");
         }
 
-        // 2. Append new rule if not duplicated
-        if (!existingRules.includes(newRule)) {
-          existingRules.push(newRule);
+        let commitMsg = "";
+        let hasChanged = false;
+
+        // 2. Process ADD or DELETE
+        if (action === 'add') {
+          const cleanRule = payload.trim();
+          if (cleanRule && !existingRules.includes(cleanRule)) {
+            existingRules.push(cleanRule);
+            commitMsg = `Katie Training: Added rule "${cleanRule.substring(0, 45)}..."`;
+            hasChanged = true;
+            appendMessage('github', `➕ Added rule #${existingRules.length}: "${cleanRule}"`, false);
+          } else {
+            console.log("Rule already exists in rulebook, skipping duplicate.");
+            return;
+          }
+        } else if (action === 'delete') {
+          const target = payload.trim().toLowerCase();
+          const targetIndex = parseInt(target) - 1;
+
+          if (!isNaN(targetIndex) && targetIndex >= 0 && targetIndex < existingRules.length) {
+            const removed = existingRules.splice(targetIndex, 1)[0];
+            commitMsg = `Katie Training: Deleted rule #${targetIndex + 1} ("${removed.substring(0, 30)}...")`;
+            hasChanged = true;
+            appendMessage('github', `🗑️ Deleted rule #${targetIndex + 1}: "${removed}"`, false);
+          } else {
+            // Find by matching text substring
+            const foundIdx = existingRules.findIndex(r => r.toLowerCase().includes(target));
+            if (foundIdx !== -1) {
+              const removed = existingRules.splice(foundIdx, 1)[0];
+              commitMsg = `Katie Training: Deleted rule "${removed.substring(0, 30)}..."`;
+              hasChanged = true;
+              appendMessage('github', `🗑️ Deleted rule: "${removed}"`, false);
+            } else {
+              console.warn(`Could not find rule matching "${payload}" to delete.`);
+              return;
+            }
+          }
         }
 
+        if (!hasChanged) return;
+
+        // 3. Save locally and update UI
         learnedRules = existingRules;
         localStorage.setItem('katee_learned_rules', JSON.stringify(learnedRules));
         updateLearnedRulesUI();
 
-        // 3. Commit updated JSON to GitHub
+        // 4. Commit updated array to GitHub
         const updatedJsonString = JSON.stringify(existingRules, null, 2);
         const encodedContent = btoa(unescape(encodeURIComponent(updatedJsonString)));
 
         const putBody = {
-          message: `Katie Training: Learned rule "${newRule.substring(0, 50)}..."`,
+          message: commitMsg,
           content: encodedContent
         };
         if (currentSha) putBody.sha = currentSha;
@@ -571,11 +608,11 @@
           throw new Error(errData.message || "Failed to commit to GitHub.");
         }
 
-        appendMessage('github', `✅ Permanently saved rule to GitHub! Total learned rules: ${existingRules.length}`, false);
+        appendMessage('github', `✅ Synced to GitHub! Active rules count: ${existingRules.length}`, false);
 
       } catch (err) {
-        console.error("GitHub Commit Error:", err);
-        appendMessage('system', `GitHub Commit Failed: ${err.message}`, false);
+        console.error("GitHub Sync Error:", err);
+        appendMessage('system', `GitHub Sync Failed: ${err.message}`, false);
       }
     }
 
@@ -588,9 +625,9 @@
 
     function getLearnedRulesPrompt() {
       if (!learnedRules || learnedRules.length === 0) return "";
-      return `\n\n[PERMANENT LEARNED RULES FROM PREVIOUS COACHING]:\n` +
+      return `\n\n[PERMANENT ACTIVE RULEBOOK]:\n` +
         learnedRules.map((r, i) => `${i + 1}. ${r}`).join('\n') +
-        `\n(Strictly follow all above learned rules during this scene).`;
+        `\n(Strictly obey all above rules during this scene).`;
     }
 
     // --- HARDWARE STATES & SENSORY TRACKERS ---
@@ -949,12 +986,17 @@
     }
 
     function parseHardwareActions(raw) {
-      // 🎓 Rule distillation capture in Training Mode
+      // 🎓 Explicit 3-Action Rule Parser in Training Mode
       if (isTrainingMode) {
-        const ruleMatch = raw.match(/\[LEARNED_RULE:\s*([^\]]+)\]/i);
-        if (ruleMatch && ruleMatch[1]) {
-          const distilledRule = ruleMatch[1].trim();
-          commitRuleToGitHub(distilledRule);
+        const addMatch = raw.match(/\[ADD_RULE:\s*([^\]]+)\]/i);
+        const deleteMatch = raw.match(/\[DELETE_RULE:\s*([^\]]+)\]/i);
+
+        if (addMatch && addMatch[1]) {
+          const newRule = addMatch[1].trim();
+          commitRuleChangeToGitHub('add', newRule);
+        } else if (deleteMatch && deleteMatch[1]) {
+          const target = deleteMatch[1].trim();
+          commitRuleChangeToGitHub('delete', target);
         }
       }
 
@@ -1087,11 +1129,23 @@
         let activeSystemPrompt = config.prompt + learnedRulesText + mood + hwStatus + timeDirective;
 
         if (isTrainingMode) {
+          const rulesListText = learnedRules.length > 0 
+            ? learnedRules.map((r, i) => `${i + 1}. ${r}`).join('\n')
+            : "No rules added yet.";
+
           activeSystemPrompt = `[SYSTEM: YOU ARE IN TRAINING & COACHING MODE]
-You are Katie, speaking out-of-character with your director/trainer to refine your behavior, logic, and phrasing.
-1. Be receptive, intelligent, and articulate. Confirm his feedback in 1 to 2 conversational sentences.
-2. MANDATORY: At the very end of your response, distill his exact lesson into a single actionable rule inside brackets: [LEARNED_RULE: When X happens, do Y and never do Z].
-3. Example output: "Understood, babe. I will stop announcing the slapper when it's already active. [LEARNED_RULE: When the ball-slapper is already running, do not announce turning it on; mock the redness of his balls instead.]"`;
+You are Katie, speaking out-of-character with your director/trainer to refine your behavior and persona.
+
+[CURRENT ACTIVE RULEBOOK IN GITHUB]:
+${rulesListText}
+
+INSTRUCTIONS FOR RULE MANAGEMENT:
+1. Respond to your director in 1 to 2 conversational sentences confirming your understanding.
+2. AT THE VERY END OF YOUR REPLY, output EXACTLY ONE of the following tags on its own line:
+   - If the user taught you a NEW rule: [ADD_RULE: Concise actionable rule to follow in roleplay]
+   - If the user explicitly told you to delete/remove a rule (e.g. "remove rule 2" or "delete the rule about X"): [DELETE_RULE: 2] (or keyword)
+   - If this turn is just conversational feedback, praise, or general coaching without a new rule: [NO_RULE_CHANGE]
+3. RULE IMMUTABILITY: NEVER delete, alter, or remove any existing rule unless the user explicitly commands you to remove or change it. Default to [NO_RULE_CHANGE] if no new rule was created.`;
         }
 
         const res = await fetch(url, {
@@ -1104,9 +1158,9 @@ You are Katie, speaking out-of-character with your director/trainer to refine yo
           body: JSON.stringify({
             messages: [{ role: "system", content: activeSystemPrompt }, ...chatHistory],
             max_tokens: 140, 
-            temperature: 0.78,
-            presence_penalty: 0.5,
-            frequency_penalty: 0.4,
+            temperature: isTrainingMode ? 0.6 : 0.78,
+            presence_penalty: isTrainingMode ? 0.0 : 0.5,
+            frequency_penalty: isTrainingMode ? 0.0 : 0.4,
             stop: ["User:", "\nUser:", "Human:"]
           })
         });
@@ -1123,7 +1177,8 @@ You are Katie, speaking out-of-character with your director/trainer to refine yo
         parseHardwareActions(raw);
 
         let cleanText = raw
-          .replace(/\[LEARNED_RULE:\s*[^\]]+\]/gi, '')
+          .replace(/\[(ADD_RULE|DELETE_RULE|NO_RULE_CHANGE|NO_RULE):\s*[^\]]*\]/gi, '')
+          .replace(/\[(NO_RULE_CHANGE|NO_RULE)\]/gi, '')
           .replace(/\[.*?\]/g, '')
           .replace(/<think>[\s\S]*?<\/think>/gi, '')
           .replace(/\b(VIBE_ON|VIBE_OFF|VIBE_PAUSE|VIBE_RESUME|SLAP_ON|SLAP_OFF|UNTIE|VIBE ON|VIBE OFF|SLAP ON|SLAP OFF):?/gi, '')
@@ -1133,7 +1188,7 @@ You are Katie, speaking out-of-character with your director/trainer to refine yo
         const sentences = cleanText.match(/[^.!?]+[.!?]+/g);
         if (sentences && sentences.length > 2) cleanText = sentences.slice(0, 2).join(' ');
 
-        if (!cleanText) cleanText = "Stay right where you are and take it like a good boy.";
+        if (!cleanText) cleanText = "Understood, director.";
 
         chatHistory.push({ role: "assistant", content: cleanText });
         appendMessage('katee', cleanText, false);
