@@ -365,13 +365,27 @@
       <h3>Hardware & Connection Settings</h3>
       
       <div class="input-group">
-        <label>LM Studio URL (Brain on port 1234 or ngrok)</label>
-        <input type="text" id="apiOrUrlInput" placeholder="https://plus-comment-blot.ngrok-free.dev">
+        <label>AI Engine Provider</label>
+        <select id="providerSelect">
+          <option value="lmstudio">LM Studio (Local PC)</option>
+          <option value="groq">Groq (Cloud API)</option>
+          <option value="gemini">Google Gemini (Cloud)</option>
+        </select>
+      </div>
+
+      <div class="input-group" id="urlOrKeyGroup">
+        <label id="urlOrKeyLabel">Connection URL / API Key</label>
+        <input type="text" id="apiOrUrlInput" placeholder="https://xxxx.trycloudflare.com or gsk_...">
+      </div>
+
+      <div class="input-group" id="groqModelGroup" style="display: none;">
+        <label>Groq Model ID</label>
+        <input type="text" id="groqModelInput" value="openai/gpt-oss-120b" placeholder="openai/gpt-oss-120b">
       </div>
 
       <div class="input-group">
         <label>Kokoro Voice URL (Port 8880 or ngrok)</label>
-        <input type="text" id="kokoroUrlInput" placeholder="https://plus-comment-blot.ngrok-free.dev">
+        <input type="text" id="kokoroUrlInput" placeholder="https://yyyy.trycloudflare.com">
       </div>
 
       <div class="input-group">
@@ -453,11 +467,13 @@
 
   <audio id="audioPlayback" autoplay></audio>
 
-  <script src="prompt.js?v=7"></script>
+  <script src="prompt.js?v=11"></script>
 
   <script>
     let config = {
-      apiOrUrl: (localStorage.getItem('katee_api_url') || 'http://127.0.0.1:1234').trim(),
+      provider: localStorage.getItem('katee_provider') || 'groq',
+      apiOrUrl: (localStorage.getItem('katee_api_url') || '').trim(),
+      groqModel: (localStorage.getItem('katee_groq_model') || 'openai/gpt-oss-120b').trim(),
       kokoroUrl: (localStorage.getItem('katee_kokoro_url') || 'http://127.0.0.1:8880').trim(),
       kokoroVoice: localStorage.getItem('katee_kokoro_voice') || 'bf_emma',
       githubToken: (localStorage.getItem('katee_github_token') || '').trim(),
@@ -481,6 +497,36 @@
     let silenceMasterTimer = null;
     let latestTranscript = "";
     let synth = window.speechSynthesis;
+
+    // --- UI SETTINGS SYNC ---
+    const providerSelect = document.getElementById('providerSelect');
+    const apiOrUrlInput = document.getElementById('apiOrUrlInput');
+    const groqModelGroup = document.getElementById('groqModelGroup');
+    const groqModelInput = document.getElementById('groqModelInput');
+
+    providerSelect.value = config.provider;
+    apiOrUrlInput.value = config.apiOrUrl;
+    groqModelInput.value = config.groqModel;
+
+    function updateSettingsUI() {
+      const prov = providerSelect.value;
+      if (prov === 'groq') {
+        document.getElementById('apiOrUrlLabel').innerText = "Groq API Key (starts with gsk_)";
+        apiOrUrlInput.placeholder = "gsk_... or openrouter key";
+        groqModelGroup.style.display = "block";
+      } else if (prov === 'gemini') {
+        document.getElementById('apiOrUrlLabel').innerText = "Google AI Studio API Key";
+        apiOrUrlInput.placeholder = "AIzaSy...";
+        groqModelGroup.style.display = "none";
+      } else {
+        document.getElementById('apiOrUrlLabel').innerText = "LM Studio URL (port 1234 or ngrok)";
+        apiOrUrlInput.placeholder = "https://xxxx.trycloudflare.com";
+        groqModelGroup.style.display = "none";
+      }
+    }
+
+    providerSelect.onchange = updateSettingsUI;
+    updateSettingsUI();
 
     // --- 🎓 ACTIVE RULEBOOK & GITHUB AUTO-COMMIT ENGINE ---
     let learnedRules = JSON.parse(localStorage.getItem('katee_learned_rules')) || [];
@@ -519,7 +565,6 @@
         let currentSha = null;
         let existingRules = [];
 
-        // 1. Fetch current file from GitHub
         try {
           const getRes = await fetch(apiUrl, {
             headers: {
@@ -540,7 +585,6 @@
         let commitMsg = "";
         let hasChanged = false;
 
-        // 2. Process ADD or DELETE
         if (action === 'add') {
           const cleanRule = payload.trim();
           if (cleanRule && !existingRules.includes(cleanRule)) {
@@ -577,12 +621,10 @@
 
         if (!hasChanged) return;
 
-        // 3. Save locally and update UI
         learnedRules = existingRules;
         localStorage.setItem('katee_learned_rules', JSON.stringify(learnedRules));
         updateLearnedRulesUI();
 
-        // 4. Commit updated array to GitHub
         const updatedJsonString = JSON.stringify(existingRules, null, 2);
         const encodedContent = btoa(unescape(encodeURIComponent(updatedJsonString)));
 
@@ -631,7 +673,7 @@
 
     // --- HARDWARE STATES & SENSORY TRACKERS ---
     let isSlapperActive = false;
-    let slapperStartTime = null;
+    let slapStartTime = null;
     let sessionVibeBurstCount = 0;
     let grudgeTurnsRemaining = 0;
     let isVibeCycleRunning = true;
@@ -667,41 +709,43 @@
       updateLearnedRulesUI();
     }
 
+    // --- 📡 EXPLICIT HARDWARE FLAGS & DECISION MATRIX INJECTION ---
     function getHardwareStatusDirective() {
-      let status = "\n\n[LIVE SENSORY PERCEPTION IN THE ROOM]:\n";
+      let status = "\n\n=== [MANDATORY LIVE HARDWARE STATE CHECK - READ BEFORE REPLYING] ===\n";
 
-      if (isSlapperActive && slapperStartTime) {
-        const slapSeconds = Math.floor((Date.now() - slapperStartTime) / 1000);
+      if (isSlapperActive && slapStartTime) {
+        const slapSeconds = Math.floor((Date.now() - slapStartTime) / 1000);
         const slapMinutes = Math.floor(slapSeconds / 60);
         const slapSecsRemaining = slapSeconds % 60;
         const approxHits = Math.floor(slapSeconds * 1.5);
         let timeStr = slapMinutes > 0 ? `${slapMinutes}m ${slapSecsRemaining}s` : `${slapSeconds}s`;
-        status += `- BALL-SLAPPER: ON for ${timeStr} continuously (approx. ${approxHits} hits taken). Remark on his sore balls or choose to stop with [SLAP_OFF].\n`;
+        
+        status += `[BALL-SLAPPER STATE: ACTIVE / SLAPPING (Running for ${timeStr})]\n` +
+                  `⚠️ CRITICAL RULE: The slapper is ALREADY hitting his balls right now. You are physically operating it. NEVER say "I will turn it on" or "Let me start slapping".\n` +
+                  `• To keep slapping: Taunt his current pain/soreness. Output NO tag.\n` +
+                  `• To stop slapping: Tell him you are granting his balls a break. Output [SLAP_OFF].\n`;
       } else {
-        status += "- BALL-SLAPPER: CURRENTLY OFF/IDLE. (You can start slapping with [SLAP_ON] if he misbehaves).\n";
+        status += `[BALL-SLAPPER STATE: IDLE / OFF]\n` +
+                  `⚠️ CRITICAL RULE: The slapper is completely OFF. His balls are currently resting.\n` +
+                  `• To start slapping: Tell him you are punishing his balls now. Output [SLAP_ON].\n` +
+                  `• To keep it off: Output NO tag.\n`;
       }
 
       if (isVibeCycleRunning) {
-        status += `- VIBRATOR: AUTO-CYCLE RUNNING ON HIS PENIS (${sessionVibeBurstCount} bursts this session). Talk about the vibrations he feels, or pause it with [VIBE_PAUSE] to deny him.\n`;
+        status += `[VIBRATOR STATE: ACTIVE / AUTO-PULSING ON HIS PENIS] (${sessionVibeBurstCount} bursts)\n` +
+                  `⚠️ CRITICAL RULE: The vibrator is ALREADY buzzing his penis right now. NEVER say "I will turn it on".\n` +
+                  `• To keep buzzing: Remark on his sensitivity. Output NO tag.\n` +
+                  `• To deny pleasure: Tell him you are cutting off his buzz. Output [VIBE_PAUSE].\n`;
       } else {
-        status += `- VIBRATOR: PAUSED / WITHHELD. You are currently denying his penis pleasure. (Resume with [VIBE_RESUME] when he is obedient).\n`;
+        status += `[VIBRATOR STATE: PAUSED / WITHHELD / OFF]\n` +
+                  `⚠️ CRITICAL RULE: His penis has NO vibration. You are denying him pleasure.\n` +
+                  `• To keep denying: Mock his frustration. Output NO tag.\n` +
+                  `• To reward him: Tell him you are giving his penis a buzzing treat. Output [VIBE_RESUME].\n`;
       }
 
       const elapsedMinutes = callStartTime ? Math.floor((Date.now() - callStartTime) / 60000) : 0;
-      status += `\n[NARRATIVE STAGE - MINUTE ${elapsedMinutes}/30]:\n`;
-      if (elapsedMinutes < 5) {
-        status += `STAGE 1 (The Trap): Establish absolute dominance. He is tied flat on his back, spread eagle, and completely helpless.`;
-      } else if (elapsedMinutes < 15) {
-        status += `STAGE 2 (Endurance Test): Test his stamina. Break his pride with slaps and vibrator teasing. Releasing him is 100% FORBIDDEN.`;
-      } else if (elapsedMinutes < 25) {
-        status += `STAGE 3 (Desperation Window): He is in the window where early release is possible only through flawless begging.`;
-      } else {
-        status += `STAGE 4 (Final Torment): The 30-minute auto-release is approaching. Push his endurance to the limit.`;
-      }
-
-      if (kateeTemper <= 35 && Math.random() < 0.22) {
-        status += `\n\n[INTERNAL WHIM]: You feel a sudden impulse to tease. Surprise him with a sudden slap [SLAP_ON] or pause his pleasure [VIBE_PAUSE] just to hear him react.`;
-      }
+      status += `[BED RESTRAINTS: LOCKED SPREAD-EAGLE - Minute ${elapsedMinutes}/30]\n` +
+                `===============================================================\n`;
 
       return status;
     }
@@ -823,7 +867,9 @@
     const saveSettingsBtn = document.getElementById('saveSettingsBtn');
     const resetPromptBtn = document.getElementById('resetPromptBtn');
     const clearMemoryBtn = document.getElementById('clearMemoryBtn');
+    const providerSelect = document.getElementById('providerSelect');
     const apiOrUrlInput = document.getElementById('apiOrUrlInput');
+    const groqModelInput = document.getElementById('groqModelInput');
     const kokoroUrlInput = document.getElementById('kokoroUrlInput');
     const kokoroVoiceSelect = document.getElementById('kokoroVoiceSelect');
     const githubTokenInput = document.getElementById('githubTokenInput');
@@ -835,7 +881,9 @@
     const vibeOffWebhookInput = document.getElementById('vibeOffWebhookInput');
     const systemPromptInput = document.getElementById('systemPromptInput');
 
+    providerSelect.value = config.provider;
     apiOrUrlInput.value = config.apiOrUrl;
+    groqModelInput.value = config.groqModel || 'openai/gpt-oss-120b';
     kokoroUrlInput.value = config.kokoroUrl;
     kokoroVoiceSelect.value = config.kokoroVoice;
     githubTokenInput.value = config.githubToken;
@@ -865,7 +913,9 @@
     };
 
     saveSettingsBtn.onclick = () => {
+      config.provider = providerSelect.value;
       config.apiOrUrl = apiOrUrlInput.value.trim();
+      config.groqModel = groqModelInput.value.trim();
       config.kokoroUrl = kokoroUrlInput.value.trim();
       config.kokoroVoice = kokoroVoiceSelect.value;
       config.githubToken = githubTokenInput.value.trim();
@@ -877,7 +927,9 @@
       config.vibeOffWebhook = vibeOffWebhookInput.value.trim();
       config.prompt = systemPromptInput.value.trim();
 
+      localStorage.setItem('katee_provider', config.provider);
       localStorage.setItem('katee_api_url', config.apiOrUrl);
+      localStorage.setItem('katee_groq_model', config.groqModel);
       localStorage.setItem('katee_kokoro_url', config.kokoroUrl);
       localStorage.setItem('katee_kokoro_voice', config.kokoroVoice);
       localStorage.setItem('katee_github_token', config.githubToken);
@@ -972,7 +1024,7 @@
           if (!isSlapperActive) {
             sendWebhook(config.slapOnWebhook);
             isSlapperActive = true;
-            slapperStartTime = Date.now();
+            slapStartTime = Date.now();
             updateLight("light-slap", "Slapping Balls (Silence Penalty)...", true, true);
             kateeMemory.totalSlaps = (kateeMemory.totalSlaps || 0) + 1;
             saveKateeMemory();
@@ -1031,22 +1083,23 @@
         if (isSlapperActive) {
           sendWebhook(config.slapOffWebhook);
           isSlapperActive = false;
-          slapperStartTime = null;
+          slapStartTime = null;
           updateLight("light-slap", "Ball-Slapper: IDLE", false, false);
         }
       } 
       else if (/\[?SLAP[_\s-]?ON:?\]?/i.test(raw) || (!isSlapRefusal && !isNegated && (
-        lower.includes("slapper on") || 
         lower.includes("turn on the slapper") || 
-        lower.includes("start slapping") || 
-        lower.includes("slap your balls") ||
-        lower.includes("slapping your balls") ||
-        lower.includes("punish your balls")
+        lower.includes("turning on the slapper") || 
+        lower.includes("start the slapper") || 
+        lower.includes("starting the slapper") ||
+        lower.includes("start slapping your balls") ||
+        lower.includes("i'll start slapping") ||
+        lower.includes("i will start slapping")
       ))) {
         if (!isSlapperActive) {
           sendWebhook(config.slapOnWebhook);
           isSlapperActive = true;
-          slapperStartTime = Date.now();
+          slapStartTime = Date.now();
           updateLight("light-slap", "Slapping Balls...", true, true);
           kateeMemory.totalSlaps = (kateeMemory.totalSlaps || 0) + 1;
           saveKateeMemory();
@@ -1114,17 +1167,14 @@
       if (chatHistory.length > 6) chatHistory = chatHistory.slice(-6);
 
       try {
-        let baseUrl = config.apiOrUrl.replace(/\/+$/, '');
-        if (!baseUrl.includes('/v1')) baseUrl += '/v1';
-        const url = `${baseUrl}/chat/completions`;
-
         const mood = updateKatieMood(userText);
         const hwStatus = getHardwareStatusDirective();
         const learnedRulesText = getLearnedRulesPrompt();
         const elapsedMinutes = callStartTime ? Math.floor((Date.now() - callStartTime) / 60000) : 0;
         const timeDirective = `\n\n[SESSION ELAPSED TIME: ${elapsedMinutes} MINUTES / 30 MINUTES TOTAL]`;
 
-        let activeSystemPrompt = config.prompt + learnedRulesText + mood + hwStatus + timeDirective;
+        // 👈 ABSOLUTE CRITICAL FIX: hwStatus & mood are injected at the VERY END of the system prompt
+        let activeSystemPrompt = config.prompt + learnedRulesText + timeDirective + mood + hwStatus;
 
         if (isTrainingMode) {
           const rulesListText = learnedRules.length > 0 
@@ -1141,40 +1191,79 @@ INSTRUCTIONS FOR RULE MANAGEMENT:
 1. Respond to your director in 1 to 2 conversational sentences confirming your understanding.
 2. AT THE VERY END OF YOUR REPLY, output EXACTLY ONE of the following tags on its own line:
    - If the user taught you a NEW rule: [ADD_RULE: Concise actionable rule to follow in roleplay]
-   - If the user explicitly told you to delete/remove a rule (e.g. "remove rule 2" or "delete the rule about X"): [DELETE_RULE: 2] (or keyword)
+   - If the user explicitly told you to delete/remove a rule: [DELETE_RULE: 2] (or keyword)
    - If this turn is just conversational feedback, praise, or general coaching without a new rule: [NO_RULE_CHANGE]
 3. RULE IMMUTABILITY: NEVER delete, alter, or remove any existing rule unless the user explicitly commands you to remove or change it. Default to [NO_RULE_CHANGE] if no new rule was created.`;
         }
 
-        const res = await fetch(url, {
-          method: "POST",
-          headers: { 
-            "Content-Type": "application/json", 
-            "ngrok-skip-browser-warning": "true",
-            "Bypass-Tunnel-Reminder": "true"
-          },
-          body: JSON.stringify({
-            messages: [{ role: "system", content: activeSystemPrompt }, ...chatHistory],
-            max_tokens: 140, 
-            temperature: isTrainingMode ? 0.6 : 0.78,
-            presence_penalty: isTrainingMode ? 0.0 : 0.5,
-            frequency_penalty: isTrainingMode ? 0.0 : 0.4,
-            stop: ["User:", "\nUser:", "Human:"]
-          })
-        });
+        let res, data;
+        if (config.provider === 'gemini') {
+          const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${config.apiOrUrl}`;
+          const payload = {
+            systemInstruction: { parts: [{ text: activeSystemPrompt }] },
+            contents: chatHistory,
+            generationConfig: { maxOutputTokens: 140 }
+          };
+          res = await fetch(url, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload)
+          });
+          data = await res.json();
+          if (data.error) throw new Error(data.error.message);
+          var raw = (data.candidates?.[0]?.content?.parts?.[0]?.text || "").trim();
+        } else if (config.provider === 'groq') {
+          const url = "https://api.groq.com/openai/v1/chat/completions";
+          const messages = [{ role: "system", content: activeSystemPrompt }, ...chatHistory];
+          res = await fetch(url, {
+            method: "POST",
+            headers: { 
+              "Content-Type": "application/json", 
+              "Authorization": `Bearer ${config.apiOrUrl}`
+            },
+            body: JSON.stringify({
+              model: config.groqModel || "openai/gpt-oss-120b",
+              messages: messages,
+              max_tokens: 140,
+              temperature: 0.78,
+              presence_penalty: 0.5,
+              frequency_penalty: 0.4,
+              stop: ["User:", "\nUser:", "Human:"]
+            })
+          });
+          data = await res.json();
+          if (data.error) throw new Error(data.error.message);
+          var raw = (data.choices?.[0]?.message?.content || "").trim();
+        } else {
+          // LM Studio / OpenAI-compatible endpoint
+          let baseUrl = config.apiOrUrl.replace(/\/+$/, '');
+          if (!baseUrl.includes('/v1')) baseUrl += '/v1';
+          const url = `${baseUrl}/chat/completions`;
+          const messages = [{ role: "system", content: activeSystemPrompt }, ...chatHistory];
 
-        if (!res.ok) {
-          const errText = await res.text();
-          throw new Error(`HTTP ${res.status}: ${errText.substring(0, 100)}`);
+          res = await fetch(url, {
+            method: "POST",
+            headers: { 
+              "Content-Type": "application/json", 
+              "ngrok-skip-browser-warning": "true",
+              "Bypass-Tunnel-Reminder": "true"
+            },
+            body: JSON.stringify({
+              messages: messages,
+              max_tokens: 140, 
+              temperature: isTrainingMode ? 0.6 : 0.78,
+              presence_penalty: isTrainingMode ? 0.0 : 0.5,
+              frequency_penalty: isTrainingMode ? 0.0 : 0.4,
+              stop: ["User:", "\nUser:", "Human:"]
+            })
+          });
+          data = await res.json();
+          if (data.error) throw new Error(data.error.message || JSON.stringify(data.error));
+          var raw = (data.choices?.[0]?.message?.content || "").trim();
         }
 
-        const data = await res.json();
-        if (data.error) throw new Error(data.error.message || JSON.stringify(data.error));
-
-        const raw = (data.choices?.[0]?.message?.content || "").trim();
         parseHardwareActions(raw);
 
-        // Clean text and fix orphaned words/acronym pronunciations
         let cleanText = raw
           .replace(/\[(ADD_RULE|DELETE_RULE|NO_RULE_CHANGE|NO_RULE):\s*[^\]]*\]/gi, '')
           .replace(/\[(NO_RULE_CHANGE|NO_RULE)\]/gi, '')
@@ -1242,7 +1331,7 @@ INSTRUCTIONS FOR RULE MANAGEMENT:
     callBtn.onclick = () => {
       if (!config.apiOrUrl) {
         settingsModal.classList.add('open');
-        alert('Please enter your LM Studio URL in settings.');
+        alert('Please enter your URL in settings.');
         return;
       }
 
