@@ -467,7 +467,7 @@
 
   <audio id="audioPlayback" autoplay></audio>
 
-  <script src="prompt.js?v=11"></script>
+  <script src="prompt.js?v=12"></script>
 
   <script>
     let config = {
@@ -511,15 +511,15 @@
     function updateSettingsUI() {
       const prov = providerSelect.value;
       if (prov === 'groq') {
-        document.getElementById('apiOrUrlLabel').innerText = "Groq API Key (starts with gsk_)";
+        document.getElementById('urlOrKeyLabel').innerText = "Groq API Key (starts with gsk_)";
         apiOrUrlInput.placeholder = "gsk_... or openrouter key";
         groqModelGroup.style.display = "block";
       } else if (prov === 'gemini') {
-        document.getElementById('apiOrUrlLabel').innerText = "Google AI Studio API Key";
+        document.getElementById('urlOrKeyLabel').innerText = "Google AI Studio API Key";
         apiOrUrlInput.placeholder = "AIzaSy...";
         groqModelGroup.style.display = "none";
       } else {
-        document.getElementById('apiOrUrlLabel').innerText = "LM Studio URL (port 1234 or ngrok)";
+        document.getElementById('urlOrKeyLabel').innerText = "LM Studio URL (port 1234 or ngrok)";
         apiOrUrlInput.placeholder = "https://xxxx.trycloudflare.com";
         groqModelGroup.style.display = "none";
       }
@@ -709,7 +709,6 @@
       updateLearnedRulesUI();
     }
 
-    // --- 📡 EXPLICIT HARDWARE FLAGS & DECISION MATRIX INJECTION ---
     function getHardwareStatusDirective() {
       let status = "\n\n=== [MANDATORY LIVE HARDWARE STATE CHECK - READ BEFORE REPLYING] ===\n";
 
@@ -855,6 +854,7 @@
       return moodDirective;
     }
 
+    // --- DOM ELEMENT SETUP & SAVING ---
     const callBtn = document.getElementById('callBtn');
     const pauseBtn = document.getElementById('pauseBtn');
     const hangupBtn = document.getElementById('hangupBtn');
@@ -1168,12 +1168,12 @@
 
       try {
         const mood = updateKatieMood(userText);
-        const hwStatus = getHardwareStatusDirective();
         const learnedRulesText = getLearnedRulesPrompt();
         const elapsedMinutes = callStartTime ? Math.floor((Date.now() - callStartTime) / 60000) : 0;
         const timeDirective = `\n\n[SESSION ELAPSED TIME: ${elapsedMinutes} MINUTES / 30 MINUTES TOTAL]`;
 
-        // 👈 ABSOLUTE CRITICAL FIX: hwStatus & mood are injected at the VERY END of the system prompt
+        // 👈 ABSOLUTE CRITICAL FIX: hwStatus is injected at the VERY END so it overrides everything else
+        const hwStatus = getHardwareStatusDirective();
         let activeSystemPrompt = config.prompt + learnedRulesText + timeDirective + mood + hwStatus;
 
         if (isTrainingMode) {
@@ -1235,7 +1235,6 @@ INSTRUCTIONS FOR RULE MANAGEMENT:
           if (data.error) throw new Error(data.error.message);
           var raw = (data.choices?.[0]?.message?.content || "").trim();
         } else {
-          // LM Studio / OpenAI-compatible endpoint
           let baseUrl = config.apiOrUrl.replace(/\/+$/, '');
           if (!baseUrl.includes('/v1')) baseUrl += '/v1';
           const url = `${baseUrl}/chat/completions`;
